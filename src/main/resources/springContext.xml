@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+        http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!--载入配置文件-->
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+    
+    <!--配置包扫描-->
+    <context:component-scan base-package="com.jiexun">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+
+    <!--配置数据源-->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource" init-method="init" destroy-method="close">
+        <property name="url" value="${jdbc.dataSource.url}"/>
+        <property name="username" value="${jdbc.dataSource.userName}"/>
+        <property name="password" value="${jdbc.dataSource.password}"/>
+        <property name="driverClassName" value="${jdbc.dataSource.driverClass}"/>
+        <!--配置初始化大小，最大，最小-->
+        <property name="minIdle" value="10"/>
+        <property name="maxActive" value="300"/>
+        <property name="initialSize" value="10"/>
+        <!--配置获取链接等待超时时间-->
+        <property name="maxWait" value="1800"/>
+        <!--配置多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒-->
+        <property name="timeBetweenEvictionRunsMillis" value="60000"/>
+        <!--配置一个连接在池中最小生存的时间，单位是毫秒-->
+        <property name="minEvictableIdleTimeMillis" value="300000"/>
+        <property name="validationQuery" value="select 'x'"/>
+        <property name="testWhileIdle" value="true"/>
+        <property name="testOnBorrow" value="false"/>
+        <property name="testOnReturn" value="false"/>
+        <!--打开PSCache，并且指定每个连接上PSCache的大小-->
+        <!--如果是oracle,则把poolPreparedStatements配置为true,mysql可以配置为false，分库分表较多的数据库，建议设置为false-->
+        <property name="poolPreparedStatements" value="false"/>
+        <property name="maxPoolPreparedStatementPerConnectionSize" value="20"/>
+        <!--配置监控统计拦截的filters,去掉后监控界面sql无法统计，wall=防火墙-->
+        <property name="filters" value="stat,wall"/>
+    </bean>
+
+    <!--配置sqlsessionfactory-->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="typeAliasesPackage" value="com.jiexun.entity"/>
+        <property name="mapperLocations">
+            <list>
+                <value>classpath:mappers/*Mapper.xml</value>
+            </list>
+        </property>
+    </bean>
+
+    <!--配置mapper扫描-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.jiexun.mapper"/>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"/>
+    </bean>
+
+    <!--配置druid监控-->
+    <bean id="druid-stat-interceptor" class="com.alibaba.druid.support.spring.stat.DruidStatInterceptor"/>
+    <bean id="druid-stat-pointcut" class="org.springframework.aop.support.JdkRegexpMethodPointcut" scope="prototype">
+        <property name="patterns">
+            <list>
+                <value>com.jiexun.controller.*</value>
+                <value>com.jiexun.service.*</value>
+                <value>com.jiexun.mapper.*</value>
+            </list>
+        </property>
+    </bean>
+    <aop:aspectj-autoproxy/>
+    <aop:config>
+        <aop:advisor advice-ref="druid-stat-interceptor" pointcut-ref="druid-stat-pointcut"/>
+    </aop:config>
+
+    <!--配置事务-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <!--注解驱动事务-->
+    <tx:annotation-driven transaction-manager="transactionManager" proxy-target-class="true"/>
+</beans>
